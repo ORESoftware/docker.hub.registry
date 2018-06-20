@@ -1,0 +1,111 @@
+'use strict';
+
+import * as https from 'https';
+import * as url from 'url';
+import * as qs from 'querystring';
+import * as assert from "assert";
+
+export const r2gSmokeTest = function () {
+  // r2g command line app uses this exported function
+  return true;
+};
+
+export type EVCallback = (err: any, val?: any) => void;
+
+export const getToken = function (v: any, cb: EVCallback) {
+
+  const req = https.get({
+      protocol: 'https:',
+      hostname: 'auth.docker.io',
+      path: '/token?service=registry.docker.io&scope=repository:library/ubuntu:pull'
+    },
+
+    function (res) {
+
+      res.once('error', cb);
+      res.setEncoding('utf8');
+
+      let data = '';
+
+      res.on('data', function (d) {
+        data += d;
+      });
+
+      res.once('end', function () {
+
+        try {
+          const r = JSON.parse(data) as any;
+          assert(typeof r.token === 'string', 'no token property available in JSON response.');
+          return cb(null, r.token || r);
+        }
+        catch (err) {
+          return cb(err);
+        }
+
+      });
+
+    });
+
+  req.end();
+
+};
+
+export const getTokenp = function (v: any) : Promise<string> {
+  return new Promise((resolve, reject) => {
+    getToken(v, function (err, result) {
+      err ? reject(err) : resolve(result);
+    });
+  });
+};
+
+export const makeGetRequest = function (token: string, options: any, cb: EVCallback) {
+
+  const req = https.get(Object.assign({}, options, {
+      headers: {'Authorization': `Bearer ${token}`},
+      protocol: 'https:',
+      hostname: 'registry-1.docker.io',
+      path: '/v2/ubuntu/manifests/latest'
+    }),
+
+    function (res) {
+
+      res.once('error', cb);
+      res.setEncoding('utf8');
+
+      let data = '';
+      res.on('data', function (d) {
+        data += d;
+      });
+
+      res.once('end', function () {
+
+        console.log('here is the end data:', data);
+
+        try {
+          const r = JSON.parse(data) as any;
+          return cb(null, r);
+        }
+        catch (err) {
+          return cb(err);
+        }
+
+      });
+    });
+
+  req.end();
+
+};
+
+getToken(null, function (err, result) {
+
+  if (err) throw err;
+
+  makeGetRequest(result, {}, function (err, result) {
+
+    if (err) throw err;
+
+    console.log('here is end result:', result);
+
+  });
+
+});
