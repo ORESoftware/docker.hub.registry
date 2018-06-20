@@ -50,7 +50,7 @@ export const getToken = function (v: any, cb: EVCallback) {
 
 };
 
-export const getTokenp = function (v: any) : Promise<string> {
+export const getTokenp = function (v: any): Promise<string> {
   return new Promise((resolve, reject) => {
     getToken(v, function (err, result) {
       err ? reject(err) : resolve(result);
@@ -58,54 +58,79 @@ export const getTokenp = function (v: any) : Promise<string> {
   });
 };
 
-export const makeGetRequest = function (token: string, options: any, cb: EVCallback) {
+export const makeGetRequestWithToken = function (token: string, options: any, cb: EVCallback) {
 
-  const req = https.get(Object.assign({}, options, {
-      headers: {'Authorization': `Bearer ${token}`},
-      protocol: 'https:',
-      hostname: 'registry-1.docker.io',
-      path: '/v2/ubuntu/manifests/latest'
-    }),
+  try {
+    assert(options && options.path, 'Must pass a "path" property, which points to a Docker hub resource/endpoint.')
+  }
+  catch (err) {
+    return process.nextTick(cb, err);
+  }
 
-    function (res) {
+  let opts = Object.assign({
+    headers: {'Authorization': `Bearer ${token}`},
+    protocol: 'https:',
+    hostname: 'registry-1.docker.io',
+    path: '/v2/ubuntu/manifests/latest'
+  }, options);
 
-      res.once('error', cb);
-      res.setEncoding('utf8');
 
-      let data = '';
-      res.on('data', function (d) {
-        data += d;
-      });
+  const req = https.get(opts, (res) => {
 
-      res.once('end', function () {
+    res.once('error', cb);
+    res.setEncoding('utf8');
 
-        console.log('here is the end data:', data);
-
-        try {
-          const r = JSON.parse(data) as any;
-          return cb(null, r);
-        }
-        catch (err) {
-          return cb(err);
-        }
-
-      });
+    let data = '';
+    res.on('data', function (d) {
+      data += d;
     });
+
+    res.once('end', function () {
+
+      console.log('here is the end data:', data);
+
+      try {
+        const r = JSON.parse(data) as any;
+        return cb(null, r);
+      }
+      catch (err) {
+        return cb(err);
+      }
+
+    });
+  });
 
   req.end();
 
 };
 
-getToken(null, function (err, result) {
-
-  if (err) throw err;
-
-  makeGetRequest(result, {}, function (err, result) {
-
-    if (err) throw err;
-
-    console.log('here is end result:', result);
-
+export const makeGetRequestWithTokenp = function (token: string, options: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    makeGetRequestWithToken(token, options, function (err, val) {
+      err ? reject(err) : resolve(val);
+    });
   });
+};
 
+export const makeGetRequestp = function (opts: any) {
+  return getTokenp(opts).then(token => {
+    return makeGetRequestWithTokenp(token, opts);
+  });
+};
+
+export const makeGetRequest = function (opts: any, cb: EVCallback) {
+  getToken(opts, function (err, token) {
+
+    if (err) {
+      return cb(err);
+    }
+
+    makeGetRequestWithToken(token, opts, cb);
+  });
+};
+
+makeGetRequest({path: '/v2/ubuntu/manifests/latest'}, function (err, result) {
+  if (err) throw err;
+  console.log('here is end result:', result);
 });
+
