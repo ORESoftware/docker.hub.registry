@@ -12,6 +12,40 @@ export const r2gSmokeTest = function () {
 
 export type EVCallback = (err: any, val?: any) => void;
 
+export const httpGetRequest = function (options: any, cb: EVCallback) {
+
+  let opts = Object.assign({
+    headers: {},
+    protocol: 'https:',
+    hostname: 'registry.hub.docker.com',
+    path: '/v1/repositories/node/tags'
+  }, options);
+
+  const req = https.get(opts, (res) => {
+
+    res.once('error', cb);
+    res.setEncoding('utf8');
+
+    let data = '';
+    res.on('data', function (d) {
+      data += d;
+    });
+
+    res.once('end', function () {
+
+      try {
+        return cb(null, JSON.parse(data));
+      }
+      catch (err) {
+        return cb(err);
+      }
+
+    });
+  });
+
+  req.end();
+};
+
 export const getToken = function (v: any, cb: EVCallback) {
 
   const req = https.get({
@@ -74,7 +108,6 @@ export const makeGetRequestWithToken = function (token: string, options: any, cb
     path: '/v2/ubuntu/manifests/latest'
   }, options);
 
-
   const req = https.get(opts, (res) => {
 
     res.once('error', cb);
@@ -104,6 +137,8 @@ export const makeGetRequestWithToken = function (token: string, options: any, cb
 
 };
 
+// https://hub.docker.com/v2/repositories/library/node/tags
+
 export const makeGetRequestWithTokenp = function (token: string, options: any): Promise<any> {
   return new Promise((resolve, reject) => {
     makeGetRequestWithToken(token, options, function (err, val) {
@@ -129,8 +164,35 @@ export const makeGetRequest = function (opts: any, cb: EVCallback) {
   });
 };
 
-makeGetRequest({path: '/v2/ubuntu/manifests/latest'}, function (err, result) {
-  if (err) throw err;
-  console.log('here is end result:', result);
-});
+// makeGetRequest({path: '/v2/ubuntu/manifests/latest'}, function (err, result) {
+//   if (err) throw err;
+//   console.log('here is end result:', result);
+// });
 
+export const getNodeList = function (options: any, cb: EVCallback) {
+
+  httpGetRequest({
+    path: '/v1/repositories/node/tags'
+  }, function (err, result) {
+
+    if (err) {
+      return cb(err);
+    }
+
+    // console.log('results:', result);
+    cb(null, result);
+
+  });
+};
+
+
+getNodeList({}, function(err, result){
+    if (err) throw err;
+
+    const results = result.map(function(v: any){
+        return v.name;
+    });
+
+    results.forEach((v:string) => console.log(v));
+
+});
